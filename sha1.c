@@ -4,21 +4,38 @@
 #include <string.h>
 #include "sha1.h"
 
+uint64_t gather_message(int count, char** argv, char** message) {
+    uint64_t bytes = 0;
+    for (int i = 1; i < count; i++) {
+        for (int j = 0; j <= strlen(argv[i]); j++) {
+            bytes++;
+        }
+    }
+    message[0] = (char*) calloc(bytes, sizeof(char));
+    uint64_t written = 0;
+    for (int i = 1; i < count; i++) {
+        for (int j = 0; j <= strlen(argv[i]); j++) {
+            if (i != count - 1 && j == strlen(argv[i])) {
+                message[0][written] = ' ';
+            } else {
+                message[0][written] = argv[i][j];
+            }
+             written++;
+        }
+    }
+    return bytes;
+}
 
-static uint32_t rotl32(uint32_t x, int b)
-{
+static uint32_t rotl32(uint32_t x, int b) {   
     return (x << b) | (x >> (32-b));
 }
 
-// switch endianness
-static uint32_t get32 (const void* p)
-{
+static uint32_t get32 (const void* p) {
     const uint8_t *x = (const uint8_t*)p;
     return (x[0] << 24) | (x[1] << 16) | (x[2] << 8) | x[3];
 }
 
-static uint32_t f (int t, uint32_t b, uint32_t c, uint32_t d)
-{
+static uint32_t f (int t, uint32_t b, uint32_t c, uint32_t d) {
     assert(0 <= t && t < 80);
 
     if (t < 20)
@@ -31,17 +48,15 @@ static uint32_t f (int t, uint32_t b, uint32_t c, uint32_t d)
         return b ^ c ^ d;
 }
 
-struct _Sha1Ctx
-{
+struct _Sha1Ctx {
     uint8_t block[64];
     uint32_t h[5];
     uint64_t bytes;
     uint32_t cur;
 };
 
-void Sha1Ctx_reset (Sha1Ctx* ctx)
-{
-    ctx->h[0] = 0x67452301;
+void Sha1Ctx_reset (Sha1Ctx* ctx) {
+    ctx->h[0] = 0x67452301; 
     ctx->h[1] = 0xefcdab89;
     ctx->h[2] = 0x98badcfe;
     ctx->h[3] = 0x10325476;
@@ -50,21 +65,17 @@ void Sha1Ctx_reset (Sha1Ctx* ctx)
     ctx->cur = 0;
 }
 
-Sha1Ctx* Sha1Ctx_create (void)
-{
-    // TODO custom allocator support
+Sha1Ctx* Sha1Ctx_create (void) {
     Sha1Ctx* ctx = (Sha1Ctx*)malloc(sizeof(Sha1Ctx));
     Sha1Ctx_reset(ctx);
     return ctx;
 }
 
-void Sha1Ctx_release (Sha1Ctx* ctx)
-{
+void Sha1Ctx_release (Sha1Ctx* ctx) {
     free(ctx);
 }
 
-static void processBlock (Sha1Ctx* ctx)
-{
+static void processBlock (Sha1Ctx* ctx) {
     static const uint32_t k[4] =
     {
         0x5A827999,
@@ -84,8 +95,7 @@ static void processBlock (Sha1Ctx* ctx)
     for (t = 0; t < 16; t++)
         w[t] = get32(&((uint32_t*)ctx->block)[t]);
 
-    for (t = 0; t < 80; t++)
-    {
+    for (t = 0; t < 80; t++) {
         int s = t & 0xf;
         uint32_t temp;
         if (t >= 16)
@@ -103,31 +113,22 @@ static void processBlock (Sha1Ctx* ctx)
     ctx->h[4] += e;
 }
 
-void Sha1Ctx_write (Sha1Ctx* ctx, const void* msg, uint64_t bytes)
-{
+void Sha1Ctx_write (Sha1Ctx* ctx, const void* msg, uint64_t bytes) {
     ctx->bytes += bytes;
 
     const uint8_t* src = msg;
-    while (bytes--)
-    {
-        // TODO: could optimize the first and last few bytes, and then copy
-        // 128 bit blocks with SIMD in between
+    while (bytes--) {
         ctx->block[ctx->cur++] = *src++;
-        if (ctx->cur == 64)
-        {
+        if (ctx->cur == 64) {
             processBlock(ctx);
             ctx->cur = 0;
         }
     }
 }
 
-Sha1Digest Sha1Ctx_getDigest (Sha1Ctx* ctx)
-{
-    // append separator
+Sha1Digest Sha1Ctx_getDigest (Sha1Ctx* ctx) {
     ctx->block[ctx->cur++] = 0x80;
-    if (ctx->cur > 56)
-    {
-        // no space in block for the 64-bit message length, flush
+    if (ctx->cur > 56) {
         memset(&ctx->block[ctx->cur], 0, 64 - ctx->cur);
         processBlock(ctx);
         ctx->cur = 0;
@@ -136,7 +137,6 @@ Sha1Digest Sha1Ctx_getDigest (Sha1Ctx* ctx)
     memset(&ctx->block[ctx->cur], 0, 56 - ctx->cur);
     uint64_t bits = ctx->bytes * 8;
 
-    // TODO a few instructions could be shaven
     ctx->block[56] = (uint8_t)(bits >> 56 & 0xff);
     ctx->block[57] = (uint8_t)(bits >> 48 & 0xff);
     ctx->block[58] = (uint8_t)(bits >> 40 & 0xff);
@@ -146,7 +146,6 @@ Sha1Digest Sha1Ctx_getDigest (Sha1Ctx* ctx)
     ctx->block[62] = (uint8_t)(bits >> 8  & 0xff);
     ctx->block[63] = (uint8_t)(bits >> 0  & 0xff);
     processBlock(ctx);
-
     {
         Sha1Digest ret;
         int i;
@@ -157,8 +156,7 @@ Sha1Digest Sha1Ctx_getDigest (Sha1Ctx* ctx)
     }
 }
 
-Sha1Digest Sha1_get (const void* msg, uint64_t bytes)
-{
+Sha1Digest Sha1_get (const void* msg, uint64_t bytes) {
     Sha1Ctx ctx;
     Sha1Ctx_reset(&ctx);
     Sha1Ctx_write(&ctx, msg, bytes);
@@ -166,15 +164,12 @@ Sha1Digest Sha1_get (const void* msg, uint64_t bytes)
 }
 
 
-Sha1Digest Sha1Digest_fromStr (const char* src)
-{
+Sha1Digest Sha1Digest_fromStr (const char* src) {
     Sha1Digest d;
     int i;
     
-    assert(src); // also, src must be at least 40 bytes
-    for (i = 0; i < 20 && src[i]; i++)
-    {
-        // \todo just use atoi or something
+    assert(src); // at least 40 bytes
+    for (i = 0; i < 20 && src[i]; i++) {
         int c0 = tolower(*src++);
         int c1 = tolower(*src++);
 
@@ -186,12 +181,10 @@ Sha1Digest Sha1Digest_fromStr (const char* src)
     return d;
 }
 
-void Sha1Digest_toStr (const Sha1Digest* digest, char* dst)
-{
+void Sha1Digest_toStr (const Sha1Digest* digest, char* dst) {
     int i;
-    assert(digest && dst); // dst must be at least 41 bytes (terminator)
-    for (i = 0; i < 20; i++)
-    {
+    assert(digest && dst); 
+    for (i = 0; i < 20; i++) {
         int c0 = ((uint8_t*)digest->digest)[i] >> 4;
         int c1 = ((uint8_t*)digest->digest)[i] & 0xf;
 
